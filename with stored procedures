@@ -1,0 +1,105 @@
+-- Stored procedure for populating datetime_dim table
+CREATE PROCEDURE usp_PopulateDatetimeDim
+AS
+BEGIN
+    -- Insert distinct datetime values into datetime_dim table
+    INSERT INTO datetime_dim (tpep_pickup_datetime, tpep_dropoff_datetime)
+    SELECT DISTINCT tpep_pickup_datetime, tpep_dropoff_datetime
+    FROM uber_staging;
+END;
+GO
+
+-- Stored procedure for populating passanger_count_dim table
+CREATE PROCEDURE usp_PopulatePassengerCountDim
+AS
+BEGIN
+    -- Insert distinct passenger_count values into passanger_count_dim table
+    INSERT INTO passanger_count_dim (passanger_count)
+    SELECT DISTINCT passenger_count
+    FROM uber_staging;
+END;
+GO
+
+-- Stored procedure for populating trip_distance_dim table
+CREATE PROCEDURE usp_PopulateTripDistanceDim
+AS
+BEGIN
+    -- Insert distinct trip_distance values into trip_distance_dim table
+    INSERT INTO trip_distance_dim (trip_distance)
+    SELECT DISTINCT trip_distance
+    FROM uber_staging;
+END;
+GO
+
+-- Create stored procedures for other dimension tables in a similar way
+-- ...
+
+-- Stored procedure for populating ride_fact table
+CREATE PROCEDURE usp_PopulateRideFact
+AS
+BEGIN
+    -- Insert data from uber_staging into ride_fact table using MERGE statement
+    MERGE INTO ride_fact AS target
+    USING (
+        SELECT 
+            vendorID,
+            d.datetime_id,
+            pc.passanger_count_id,
+            td.trip_distance_id,
+            pl.pickup_location_id,
+            dl.drop_location_id,
+            rc.rate_code_id,
+            pt.payment_type_id,
+            fare_amount,
+            extra,
+            mta_tax,
+            tip_amount,
+            tolls_amount,
+            improvement_surcharge,
+            total_amount
+        FROM uber_staging u
+        LEFT JOIN datetime_dim d ON u.tpep_pickup_datetime = d.tpep_pickup_datetime AND u.tpep_dropoff_datetime = d.tpep_dropoff_datetime
+        LEFT JOIN passanger_count_dim pc ON u.passenger_count = pc.passanger_count
+        LEFT JOIN trip_distance_dim td ON u.trip_distance = td.trip_distance
+        LEFT JOIN pickup_location_dim pl ON u.pickup_latitude = pl.pickup_latitude AND u.pickup_longitude = pl.pickup_longitude
+        LEFT JOIN drop_location_dim dl ON u.dropoff_latitude = dl.dropoff_latitude AND u.dropoff_longitude = dl.dropoff_longitude
+        LEFT JOIN rate_code_dim rc ON u.ratecodeID = rc.rate_code
+        LEFT JOIN payment_type_dim pt ON u.payment_type = pt.payment_type
+    ) AS source ON 1 = 0 -- This is used for INSERT only
+    WHEN NOT MATCHED THEN
+        INSERT (
+            vendorID,
+            datetime_id,
+            passanger_count_id,
+            trip_distance_id,
+            pickup_location_id,
+            drop_location_id,
+            rate_code_id,
+            payment_type_id,
+            fare_amount,
+            extra,
+            mta_tax,
+            tip_amount,
+            tolls_amount,
+            improvement_surcharge,
+            total_amount
+        )
+        VALUES (
+            source.vendorID,
+            source.datetime_id,
+            source.passanger_count_id,
+            source.trip_distance_id,
+            source.pickup_location_id,
+            source.drop_location_id,
+            source.rate_code_id,
+            source.payment_type_id,
+            source.fare_amount,
+            source.extra,
+            source.mta_tax,
+            source.tip_amount,
+            source.tolls_amount,
+            source.improvement_surcharge,
+            source.total_amount
+        );
+END;
+GO
