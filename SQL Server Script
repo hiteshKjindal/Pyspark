@@ -1,0 +1,207 @@
+--- TO Create staging table
+CREATE TABLE ride_staging
+(VendorID int,
+tpep_pickup_datetime TIMESTAMP,
+tpep_dropoff_datetime TIMESTAMP,
+passenger_count FLOAT,
+trip_distance FLOAT,
+pickup_longitude FLOAT,
+pickup_latitude FLOAT,
+RatecodeID int,
+store_and_fwd_flag VARCHAR,
+dropoff_longitude FLOAT,
+dropoff_latitude FLOAT,
+payment_type VARCHAR,
+fare_amount FLOAT,
+extra FLOAT,
+mta_tax	FLOAT,
+tip_amount FLOAT,
+tolls_amount FLOAT,
+improvement_surcharge FLOAT,
+total_amount FLOAT);
+
+-- Create datetime_dim table with computed columns
+CREATE TABLE datetime_dim (
+  datetime_id INT IDENTITY(1,1) PRIMARY KEY,
+  tpep_pickup_datetime DATETIME,
+  tpep_dropoff_datetime DATETIME,
+  pick_day AS DAY(tpep_pickup_datetime) PERSISTED,
+  pick_monmth AS MONTH(tpep_pickup_datetime) PERSISTED,
+  pick_year AS YEAR(tpep_pickup_datetime) PERSISTED,
+  drop_day AS DAY(tpep_dropoff_datetime) PERSISTED,
+  drop_monmth AS MONTH(tpep_dropoff_datetime) PERSISTED,
+  drop_year AS YEAR(tpep_dropoff_datetime) PERSISTED,
+  drop_weekday AS DATENAME(weekday, tpep_dropoff_datetime),
+  pick_weekday AS DATENAME(weekday, tpep_pickup_datetime),
+  pick_hour AS DATEPART(hour, tpep_pickup_datetime) PERSISTED,
+  drop_hour AS DATEPART(hour, tpep_dropoff_datetime) PERSISTED
+);
+
+-- Insert distinct datetime values into datetime_dim table
+INSERT INTO datetime_dim (tpep_pickup_datetime, tpep_dropoff_datetime)
+SELECT DISTINCT tpep_pickup_datetime, tpep_dropoff_datetime
+FROM uber_staging;
+
+-- Create passanger_count_dim table
+CREATE TABLE passanger_count_dim (
+  passanger_count_id INT IDENTITY(1,1) PRIMARY KEY,
+  passanger_count INT
+);
+
+-- Insert distinct passenger_count values into passanger_count_dim table
+INSERT INTO passanger_count_dim (passanger_count)
+SELECT DISTINCT passenger_count
+FROM uber_staging;
+
+-- Create trip_distance_dim table
+CREATE TABLE trip_distance_dim (
+  trip_distance_id INT IDENTITY(1,1) PRIMARY KEY,
+  trip_distance FLOAT
+);
+
+-- Insert distinct trip_distance values into trip_distance_dim table
+INSERT INTO trip_distance_dim (trip_distance)
+SELECT DISTINCT trip_distance
+FROM uber_staging;
+
+-- Create rate_code_dim table
+CREATE TABLE rate_code_dim (
+  rate_code_id INT IDENTITY(1,1) PRIMARY KEY,
+  rate_code VARCHAR(50), -- Add a specific length for VARCHAR
+  rate_code_name VARCHAR(100) -- Specify the length for rate_code_name as well
+);
+
+-- Insert distinct ratecodeID values into rate_code_dim table
+INSERT INTO rate_code_dim (rate_code)
+SELECT DISTINCT ratecodeID
+FROM uber_staging;
+
+-- Create pickup_location_dim table
+CREATE TABLE pickup_location_dim (
+  pickup_location_id INT IDENTITY(1,1) PRIMARY KEY,
+  pickup_latitude FLOAT,
+  pickup_longitude FLOAT
+);
+
+-- Insert distinct pickup_latitude and pickup_longitude values into pickup_location_dim table
+INSERT INTO pickup_location_dim (pickup_latitude, pickup_longitude)
+SELECT DISTINCT pickup_latitude, pickup_longitude
+FROM uber_staging;
+
+-- Create drop_location_dim table
+CREATE TABLE drop_location_dim (
+  drop_location_id INT IDENTITY(1,1) PRIMARY KEY,
+  dropoff_latitude FLOAT,
+  dropoff_longitude FLOAT
+);
+
+-- Insert distinct dropoff_latitude and dropoff_longitude values into drop_location_dim table
+INSERT INTO drop_location_dim (dropoff_latitude, dropoff_longitude)
+SELECT DISTINCT dropoff_latitude, dropoff_longitude
+FROM uber_staging;
+
+-- Create payment_type_dim table
+CREATE TABLE payment_type_dim (
+  payment_type_id INT IDENTITY(1,1) PRIMARY KEY,
+  payment_type INT,
+  payment_type_name VARCHAR(100) -- Specify the length for payment_type_name
+);
+
+-- Insert distinct payment_type values into payment_type_dim table
+INSERT INTO payment_type_dim (payment_type)
+SELECT DISTINCT payment_type
+FROM uber_staging;
+
+-- Add the datetime_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD datetime_id INT;
+
+-- Update the datetime_id column in uber_staging by joining with datetime_dim
+UPDATE uber_staging 
+SET uber_staging.datetime_id = d.datetime_id
+FROM datetime_dim d
+WHERE uber_staging.tpep_pickup_datetime = d.tpep_pickup_datetime
+  AND uber_staging.tpep_dropoff_datetime = d.tpep_dropoff_datetime;
+
+-- Add the passanger_count_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD passanger_count_id INT;
+
+-- Update the passanger_count_id column in uber_staging by joining with passanger_count_dim
+UPDATE uber_staging 
+SET uber_staging.passanger_count_id = d.passanger_count_id
+FROM passanger_count_dim d
+WHERE uber_staging.passenger_count = d.passanger_count;
+
+-- Add the trip_distance_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD trip_distance_id INT;
+
+-- Update the trip_distance_id column in uber_staging by joining with trip_distance_dim
+UPDATE uber_staging 
+SET uber_staging.trip_distance_id = d.trip_distance_id
+FROM trip_distance_dim d
+WHERE uber_staging.trip_distance = d.trip_distance;
+
+-- Add the rate_code_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD rate_code_id INT;
+
+-- Update the rate_code_id column in uber_staging by joining with rate_code_dim
+UPDATE uber_staging 
+SET uber_staging.rate_code_id = d.rate_code_id
+FROM rate_code_dim d
+WHERE uber_staging.ratecodeID = d.rate_code;
+
+-- Add the pickup_location_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD pickup_location_id INT;
+
+-- Update the pickup_location_id column in uber_staging by joining with pickup_location_dim
+UPDATE uber_staging 
+SET uber_staging.pickup_location_id = d.pickup_location_id
+FROM pickup_location_dim d
+WHERE uber_staging.pickup_latitude = d.pickup_latitude
+  AND uber_staging.pickup_longitude = d.pickup_longitude;
+
+-- Add the drop_location_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD drop_location_id INT;
+
+-- Update the drop_location_id column in uber_staging by joining with drop_location_dim
+UPDATE uber_staging 
+SET uber_staging.drop_location_id = d.drop_location_id
+FROM drop_location_dim d
+WHERE uber_staging.dropoff_latitude = d.dropoff_latitude
+  AND uber_staging.dropoff_longitude = d.dropoff_longitude;
+
+-- Add the payment_type_id column to uber_staging table
+ALTER TABLE uber_staging
+ADD payment_type_id INT;
+
+-- Update the payment_type_id column in uber_staging by joining with payment_type_dim
+UPDATE uber_staging 
+SET uber_staging.payment_type_id = d.payment_type_id
+FROM payment_type_dim d
+WHERE uber_staging.payment_type = d.payment_type;
+
+-- Create the ride_fact table and insert data from uber_staging
+CREATE TABLE ride_fact AS
+SELECT 
+    vendorID,
+    datetime_id,
+    passanger_count_id,
+    trip_distance_id,
+    pickup_location_id,
+    drop_location_id,
+    rate_code_id,
+    payment_type_id,
+    fare_amount,
+    extra,
+    mta_tax,
+    tip_amount,
+    tolls_amount,
+    improvement_surcharge,
+    total_amount,
+    IDENTITY(int, 1, 1) AS ride_id
+FROM uber_staging;
